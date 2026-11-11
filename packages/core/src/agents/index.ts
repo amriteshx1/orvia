@@ -1,4 +1,11 @@
-export { defaultApprovalPolicy, defaultSnapshot, TOOL_IDS, APPROVAL_ACTIONS } from "./defaults";
+export {
+  approvalModeFor,
+  defaultApprovalPolicy,
+  defaultSnapshot,
+  normalizeApprovalPolicy,
+  TOOL_IDS,
+  APPROVAL_ACTIONS,
+} from "./defaults";
 export type { AgentSnapshot, AgentDefaults, ApprovalPolicy } from "./defaults";
 export { diffInstructions, diffSettings } from "./diff";
 export { NotFoundError, ValidationError, parseAgentInput } from "./schema";
@@ -9,4 +16,5 @@ export {
   getAgent,
   listAgents,
   updateAgent,
+  readAgentSnapshot,
 } from "./service";

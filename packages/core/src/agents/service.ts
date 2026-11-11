@@ -1,5 +1,5 @@
 import { prisma } from "@orvia/db";
-import type { AgentSnapshot } from "./defaults";
+import { normalizeApprovalPolicy, type AgentSnapshot } from "./defaults";
 import { diffInstructions, diffSettings, type FieldChange, type InstructionChange } from "./diff";
 import { NotFoundError, parseAgentInput, snapshotFromInput, ValidationError } from "./schema";
 
@@ -171,7 +171,7 @@ function toVersion(version: VersionRecord) {
   const tools = readObject(version.toolConfig);
   const memory = readObject(version.memoryConfig);
   const limits = readObject(version.limits);
-  const policy = version.approvalPolicy as AgentSnapshot["approvalPolicy"];
+  const policy = normalizeApprovalPolicy(version.approvalPolicy);
   return {
     id: version.id,
     versionNumber: version.versionNumber,
@@ -192,6 +192,10 @@ function toVersion(version: VersionRecord) {
     wallClockMs: Number(limits.wallClockMs),
     approvalPolicy: policy,
   };
+}
+
+export function readAgentSnapshot(version: VersionRecord) {
+  return toVersion(version);
 }
 
 function readObject(value: unknown): Record<string, unknown> {
