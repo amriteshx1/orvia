@@ -1,0 +1,25 @@
+{
+  "name": "@orvia/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./agents": "./src/agents/index.ts",
+    "./agent-defaults": "./src/agents/defaults.ts",
+    "./health": "./src/health.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@orvia/db": "workspace:*",
+    "diff": "^8.0.2",
+    "ioredis": "^5.8.2",
+    "pg": "^8.16.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.6",
+    "typescript": "~5.9.3"
+  }
+}
