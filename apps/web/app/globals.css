@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #f4f1ea;
+  --color-ink: #1f1a14;
+  --color-muted: #645c52;
+  --color-line: #e2dbd0;
+  --color-card: #fffdf8;
+  --color-pine: #0c6b58;
+  --color-pine-dark: #084c3e;
+  --color-danger: #8f2d2d;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+}
+
+input:not([type="checkbox"]),
+textarea,
+select {
+  width: 100%;
+  border: 1px solid var(--color-line);
+  background: white;
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.75rem;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid var(--color-pine);
+  outline-offset: 1px;
+}
