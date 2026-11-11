@@ -28,10 +28,21 @@ export type WebEnv = SharedEnv & {
   defaultMaxSteps: number;
   defaultMaxWallClockMs: number;
   defaultAgentTokenBudget: number;
+  monthlyTokenBudget: number;
+  maxConcurrentExecutions: number;
+  approvalTimeoutHours: number;
 };
 
 export type WorkerEnv = SharedEnv & {
   workerConcurrency: number;
+  openAiApiKey?: string;
+  openAiModel: string;
+  monthlyTokenBudget: number;
+  maxConcurrentExecutions: number;
+  approvalTimeoutHours: number;
+  langfusePublicKey?: string;
+  langfuseSecretKey?: string;
+  langfuseBaseUrl?: string;
 };
 
 export class EnvError extends Error {
@@ -132,6 +143,7 @@ export function parseWebEnv(source: NodeJS.ProcessEnv = process.env): WebEnv {
       100_000,
       "DEFAULT_AGENT_TOKEN_BUDGET",
     ),
+    ...platformLimits(source),
   };
 }
 
@@ -143,6 +155,32 @@ export function parseWorkerEnv(source: NodeJS.ProcessEnv = process.env): WorkerE
       read(source, "WORKER_CONCURRENCY"),
       2,
       "WORKER_CONCURRENCY",
+    ),
+    openAiApiKey: read(source, "OPENAI_API_KEY"),
+    openAiModel: read(source, "OPENAI_MODEL") ?? "gpt-6-luna",
+    ...platformLimits(source),
+    langfusePublicKey: read(source, "LANGFUSE_PUBLIC_KEY"),
+    langfuseSecretKey: read(source, "LANGFUSE_SECRET_KEY"),
+    langfuseBaseUrl: read(source, "LANGFUSE_BASE_URL"),
+  };
+}
+
+function platformLimits(source: NodeJS.ProcessEnv) {
+  return {
+    monthlyTokenBudget: positiveInt(
+      read(source, "DEFAULT_MONTHLY_TOKEN_BUDGET"),
+      1_000_000,
+      "DEFAULT_MONTHLY_TOKEN_BUDGET",
+    ),
+    maxConcurrentExecutions: positiveInt(
+      read(source, "DEFAULT_MAX_CONCURRENT_EXECUTIONS"),
+      2,
+      "DEFAULT_MAX_CONCURRENT_EXECUTIONS",
+    ),
+    approvalTimeoutHours: positiveInt(
+      read(source, "APPROVAL_TIMEOUT_HOURS"),
+      24,
+      "APPROVAL_TIMEOUT_HOURS",
     ),
   };
 }
