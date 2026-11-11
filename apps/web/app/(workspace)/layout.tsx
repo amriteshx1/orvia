@@ -15,10 +15,10 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
             <Link href="/agents" className="font-semibold">
               Orvia
             </Link>
-            <nav>
-              <Link href="/agents" className="text-sm">
-                Agents
-              </Link>
+            <nav className="flex items-center gap-4 text-sm">
+              <Link href="/agents">Agents</Link>
+              <Link href="/executions">Executions</Link>
+              <Link href="/approvals">Approvals</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">
