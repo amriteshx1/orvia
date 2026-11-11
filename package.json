@@ -1,0 +1,19 @@
+{
+  "name": "orvia",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --parallel --filter @orvia/web --filter @orvia/worker dev",
+    "typecheck": "corepack pnpm --filter @orvia/* run typecheck",
+    "lint": "corepack pnpm --filter @orvia/web lint",
+    "db:generate": "corepack pnpm --filter @orvia/db generate",
+    "db:migrate": "corepack pnpm --filter @orvia/db migrate"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1"
+  }
+}
