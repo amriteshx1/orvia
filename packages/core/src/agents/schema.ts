@@ -24,6 +24,7 @@ export const agentInputSchema = z.object({
   approvalPolicy: z.object({
     unknown: mode,
     tools: z.object({
+      fixture_action: mode,
       web_search: mode,
       http_public_get: mode,
       http_credentialed: mode,
