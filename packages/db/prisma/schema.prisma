@@ -20,6 +20,9 @@ model User {
   sessions      Session[]
   accounts      Account[]
   agents        Agent[]
+  executions    Execution[]
+  budget        UserBudget?
+  approvals     Approval[]
 
   @@unique([email])
   @@map("user")
@@ -84,6 +87,7 @@ model Agent {
   updatedAt        DateTime       @updatedAt
   user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions         AgentVersion[]
+  executions       Execution[]
   currentVersion   AgentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
 
   @@index([userId, archivedAt])
@@ -105,10 +109,188 @@ model AgentVersion {
   limits          Json
   approvalPolicy  Json
   createdAt       DateTime @default(now())
-  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  currentFor      Agent?   @relation("CurrentVersion")
+  agent           Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  executions      Execution[]
+  currentFor      Agent?      @relation("CurrentVersion")
 
   @@unique([agentId, versionNumber])
   @@index([agentId, createdAt])
   @@map("agent_version")
+}
+
+enum ExecutionStatus {
+  queued
+  running
+  waitingApproval
+  succeeded
+  failed
+  cancelled
+  budgetExceeded
+}
+
+enum BudgetHoldStatus {
+  none
+  open
+  unresolved
+}
+
+enum ExternalEffectStatus {
+  reserved
+  succeeded
+  failed
+  uncertain
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+  expired
+}
+
+model UserBudget {
+  userId            String   @id
+  monthlyTokenCap   Int
+  concurrentRunCap  Int
+  consumedTokens    Int      @default(0)
+  reservedTokens    Int      @default(0)
+  periodStart       DateTime
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_budget")
+}
+
+model Execution {
+  id                     String            @id @default(uuid()) @db.Uuid
+  userId                 String
+  agentId                String            @db.Uuid
+  agentVersionId         String            @db.Uuid
+  task                   String
+  status                 ExecutionStatus   @default(queued)
+  leaseOwner             String?
+  leaseExpiresAt         DateTime?
+  fencingToken           Int               @default(0)
+  heartbeatAt            DateTime?
+  cancelRequestedAt      DateTime?
+  openHoldTokens         Int               @default(0)
+  unresolvedHoldTokens   Int               @default(0)
+  budgetReservedTokens   Int               @default(0)
+  budgetHoldStatus       BudgetHoldStatus  @default(none)
+  finalText              String?
+  errorCode              String?
+  inputTokens            Int               @default(0)
+  outputTokens           Int               @default(0)
+  cachedTokens           Int               @default(0)
+  reasoningTokens        Int               @default(0)
+  estimatedCostUsd       Float?
+  langfuseTraceId        String?
+  startedAt              DateTime?
+  finishedAt             DateTime?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  user                   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent                  Agent             @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agentVersion           AgentVersion      @relation(fields: [agentVersionId], references: [id], onDelete: Restrict)
+  checkpoints            ExecutionCheckpoint[]
+  steps                  ExecutionStep[]
+  effects                ExternalEffect[]
+  approvals              Approval[]
+  usage                  UsageRecord?
+
+  @@index([userId, createdAt])
+  @@index([userId, status])
+  @@index([status, leaseExpiresAt])
+  @@map("execution")
+}
+
+model ExecutionCheckpoint {
+  id            String   @id @default(uuid()) @db.Uuid
+  executionId   String   @db.Uuid
+  stepIndex     Int
+  messages      Json
+  schemaVersion Int
+  createdAt     DateTime @default(now())
+  execution     Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, stepIndex])
+  @@map("execution_checkpoint")
+}
+
+model ExecutionStep {
+  id              String   @id @default(uuid()) @db.Uuid
+  executionId     String   @db.Uuid
+  stepIndex       Int
+  kind            String
+  toolName        String?
+  input           Json?
+  output          Json?
+  inputTokens     Int?
+  outputTokens    Int?
+  cachedTokens    Int?
+  reasoningTokens Int?
+  latencyMs       Int?
+  createdAt       DateTime @default(now())
+  execution       Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId, stepIndex])
+  @@map("execution_step")
+}
+
+model ExternalEffect {
+  id             String               @id @default(uuid()) @db.Uuid
+  executionId    String               @db.Uuid
+  toolCallId     String
+  idempotencyKey String?
+  status         ExternalEffectStatus
+  requestHash    String
+  result         Json?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  execution      Execution            @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([toolCallId])
+  @@index([executionId, status])
+  @@map("external_effect")
+}
+
+model Approval {
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String
+  executionId     String         @db.Uuid
+  toolCallId      String
+  approvalId      String
+  toolName        String
+  proposedInput   Json
+  status          ApprovalStatus @default(pending)
+  comment         String?
+  decidedByUserId String?
+  decidedAt       DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime       @default(now())
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  execution       Execution      @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, approvalId])
+  @@index([userId, status])
+  @@index([status, expiresAt])
+  @@map("approval")
+}
+
+model UsageRecord {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String
+  executionId      String    @unique @db.Uuid
+  inputTokens      Int
+  outputTokens     Int
+  cachedTokens     Int
+  reasoningTokens  Int
+  toolCallCount    Int
+  estimatedCostUsd Float?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  execution        Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("usage_record")
 }
