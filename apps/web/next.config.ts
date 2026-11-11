@@ -10,7 +10,7 @@ if (existsSync(rootEnv)) loadEnv({ path: rootEnv });
 const nextConfig: NextConfig = {
   agentRules: false,
   transpilePackages: ["@orvia/config", "@orvia/core", "@orvia/db"],
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg", "better-auth"],
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg", "better-auth", "bullmq", "ioredis"],
 };
 
 export default nextConfig;
