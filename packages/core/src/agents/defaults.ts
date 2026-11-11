@@ -1,4 +1,5 @@
 export const TOOL_IDS = [
+  "fixture",
   "web_search",
   "http_request",
   "memory",
@@ -8,6 +9,7 @@ export const TOOL_IDS = [
 ] as const;
 
 export const APPROVAL_ACTIONS = [
+  "fixture_action",
   "web_search",
   "http_public_get",
   "http_credentialed",
@@ -62,6 +64,7 @@ export function defaultApprovalPolicy(): ApprovalPolicy {
   return {
     unknown: "require_approval",
     tools: {
+      fixture_action: "require_approval",
       web_search: "auto",
       http_public_get: "auto",
       http_credentialed: "require_approval",
@@ -77,6 +80,37 @@ export function defaultApprovalPolicy(): ApprovalPolicy {
       memory_delete: "require_approval",
     },
   };
+}
+
+export function normalizeApprovalPolicy(value: unknown): ApprovalPolicy {
+  const defaults = defaultApprovalPolicy();
+  const record =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as { unknown?: unknown; tools?: unknown })
+      : {};
+  const tools =
+    record.tools && typeof record.tools === "object" && !Array.isArray(record.tools)
+      ? (record.tools as Record<string, unknown>)
+      : {};
+  return {
+    unknown: asMode(record.unknown, defaults.unknown),
+    tools: Object.fromEntries(
+      APPROVAL_ACTIONS.map((action) => [action, asMode(tools[action], defaults.tools[action])]),
+    ) as ApprovalPolicy["tools"],
+  };
+}
+
+export function approvalModeFor(policy: ApprovalPolicy, toolName: string): ApprovalMode {
+  if ((APPROVAL_ACTIONS as readonly string[]).includes(toolName)) {
+    return policy.tools[toolName as ApprovalAction];
+  }
+  return policy.unknown;
+}
+
+function asMode(value: unknown, fallback: ApprovalMode): ApprovalMode {
+  return (APPROVAL_MODES as readonly string[]).includes(String(value))
+    ? (value as ApprovalMode)
+    : fallback;
 }
 
 export function defaultSnapshot(model: string, defaults: AgentDefaults): AgentSnapshot {
