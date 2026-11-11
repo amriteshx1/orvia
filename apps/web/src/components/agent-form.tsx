@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 const actionLabels: Record<(typeof APPROVAL_ACTIONS)[number], string> = {
+  fixture_action: "Fixture action",
   web_search: "Web search",
   http_public_get: "Public HTTP GET",
   http_credentialed: "Credentialed HTTP",
@@ -135,6 +136,10 @@ export function AgentForm({
 
       <fieldset className="space-y-3">
         <legend className="text-lg font-medium">Tools</legend>
+        <p className="text-sm text-muted">
+          Fixture action is the local approval gate. The other tools are saved on the version and are not available to
+          the model yet.
+        </p>
         {TOOL_IDS.map((tool) => (
           <label key={tool} className="flex items-center gap-2 text-sm">
             <input
@@ -145,7 +150,7 @@ export function AgentForm({
               defaultChecked={initial.enabledTools.includes(tool)}
               disabled={readOnly}
             />
-            {tool}
+            {tool === "fixture" ? "Fixture action" : tool}
           </label>
         ))}
       </fieldset>

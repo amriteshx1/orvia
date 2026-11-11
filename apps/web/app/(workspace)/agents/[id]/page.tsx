@@ -1,7 +1,10 @@
 import { getWebEnv } from "@orvia/config";
 import { compareAgentVersions, getAgent, NotFoundError } from "@orvia/core/agents";
+import { listExecutions } from "@orvia/core/execution";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AgentForm } from "@/components/agent-form";
+import { RunTaskForm } from "@/components/run-task-form";
 import { requirePageUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +36,7 @@ export default async function AgentDetailPage({
       : null;
 
   const modelNote = getWebEnv().openAiModel;
+  const executions = await listExecutions(user.id, id);
   const versions = [...agent.versions].sort((left, right) => left.versionNumber - right.versionNumber);
 
   return (
@@ -50,6 +54,21 @@ export default async function AgentDetailPage({
         initial={agent.current}
         readOnly={Boolean(agent.archivedAt)}
       />
+      <div className="mt-12 border-t border-line pt-8">
+        <h2 className="text-xl font-semibold">Run</h2>
+        <RunTaskForm agentId={agent.id} disabled={Boolean(agent.archivedAt)} />
+        {executions.length > 0 ? (
+          <ul className="mt-6 space-y-2 text-sm">
+            {executions.slice(0, 5).map((execution) => (
+              <li key={execution.id}>
+                <Link href={`/executions/${execution.id}`}>
+                  {execution.status} · {execution.task.slice(0, 80)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
       <div className="mt-12 border-t border-line pt-8">
         <h2 className="text-xl font-semibold">Versions</h2>
         <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
