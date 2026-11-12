@@ -93,6 +93,7 @@ export async function getExecution(userId: string, executionId: string) {
       agentVersion: true,
       steps: { orderBy: { stepIndex: "asc" } },
       approvals: { orderBy: { createdAt: "asc" } },
+      effects: { orderBy: { createdAt: "asc" } },
       user: { select: { email: true } },
     },
   });
@@ -118,6 +119,8 @@ export async function getExecution(userId: string, executionId: string) {
     outputTokens: row.outputTokens,
     cachedTokens: row.cachedTokens,
     reasoningTokens: row.reasoningTokens,
+    embeddingTokens: row.embeddingTokens,
+    webSearchCalls: row.webSearchCalls,
     estimatedCostUsd: row.estimatedCostUsd,
     costIsEstimate: true,
     longContext: row.inputTokens > 272_000,
@@ -148,6 +151,84 @@ export async function getExecution(userId: string, executionId: string) {
       decidedAt: approval.decidedAt?.toISOString() ?? null,
       expiresAt: approval.expiresAt.toISOString(),
       createdAt: approval.createdAt.toISOString(),
+    })),
+    effects: row.effects.map((effect) => ({
+      id: effect.id,
+      toolCallId: effect.toolCallId,
+      status: effect.status,
+      idempotencyKey: effect.idempotencyKey,
+      result: effect.result,
+      createdAt: effect.createdAt.toISOString(),
+      updatedAt: effect.updatedAt.toISOString(),
+    })),
+  };
+}
+
+export async function reconcileEffect(input: {
+  userId: string;
+  executionId: string;
+  effectId: string;
+  status: "succeeded" | "failed";
+  note: string;
+}) {
+  const note = input.note.trim();
+  if (note.length > 2_000) throw new ValidationError([{ path: "note", message: "Note is too long" }]);
+  const effect = await prisma.externalEffect.findFirst({
+    where: { id: input.effectId, executionId: input.executionId, execution: { userId: input.userId } },
+  });
+  if (!effect) throw new NotFoundError();
+  if (effect.status !== "uncertain") {
+    throw new ValidationError([{ path: "status", message: "Only an uncertain effect can be reconciled" }]);
+  }
+  await prisma.externalEffect.update({
+    where: { id: effect.id },
+    data: {
+      status: input.status,
+      result: { reconciled: true, note: note || null, outcome: input.status },
+    },
+  });
+  if (input.status === "failed") {
+    await prisma.execution.updateMany({
+      where: { id: effect.executionId, userId: input.userId, errorCode: "effect_uncertain" },
+      data: { errorCode: "effect_failed" },
+    });
+  }
+  return getExecution(input.userId, input.executionId);
+}
+
+export async function getUsage(userId: string) {
+  const [budget, records] = await Promise.all([
+    prisma.userBudget.findUnique({ where: { userId } }),
+    prisma.usageRecord.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { execution: { select: { task: true, status: true, agent: { select: { name: true } } } } },
+    }),
+  ]);
+  return {
+    budget: budget
+      ? {
+          monthlyTokenCap: budget.monthlyTokenCap,
+          consumedTokens: budget.consumedTokens,
+          reservedTokens: budget.reservedTokens,
+          periodStart: budget.periodStart.toISOString(),
+        }
+      : null,
+    records: records.map((record) => ({
+      id: record.id,
+      executionId: record.executionId,
+      task: record.execution.task,
+      status: record.execution.status,
+      agentName: record.execution.agent.name,
+      inputTokens: record.inputTokens,
+      outputTokens: record.outputTokens,
+      cachedTokens: record.cachedTokens,
+      reasoningTokens: record.reasoningTokens,
+      embeddingTokens: record.embeddingTokens,
+      webSearchCalls: record.webSearchCalls,
+      estimatedCostUsd: record.estimatedCostUsd,
+      createdAt: record.createdAt.toISOString(),
     })),
   };
 }

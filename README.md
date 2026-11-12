@@ -58,4 +58,35 @@ Enable the fixture tool on an agent and set its approval mode to require approva
 | `apps/worker` | BullMQ worker that runs ToolLoopAgent |
 | `packages/config` | Environment parsing |
 | `packages/db` | Prisma schema, migrations, client |
-| `packages/core` | Agents, budgets, leases, runner, and approvals |
+| `packages/core` | Agents, budgets, leases, runner, tools, and approvals |
+
+## Optional integrations
+
+The app and worker start when these are empty. A tool or page that needs a missing credential returns a configuration error instead of failing the process.
+
+| Variable | Used for |
+| --- | --- |
+| `OPENAI_API_KEY` | Model calls, web search, embeddings, and rubric grading |
+| `OPENAI_EMBEDDING_MODEL` | Memory embeddings. Default `text-embedding-3-small` |
+| `CREDENTIALS_ENCRYPTION_KEY` | Encrypts connection secrets. 64 hex characters. Required before a secret can be saved |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth App, scopes `read:user` and `repo` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Gmail OAuth. Enable the Gmail API. Read and send are separate consent screens |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_BASE_URL` | Optional traces. Leave empty to disable. `LANGFUSE_BASE_URL` points at Cloud or the local console |
+
+OAuth redirect URLs, using the value of `APP_URL`:
+
+- GitHub: `APP_URL/api/connections/github/callback`
+- Google: `APP_URL/api/connections/google/callback`
+
+For local development those are `http://localhost:3000/api/connections/github/callback` and `http://localhost:3000/api/connections/google/callback`.
+
+Web search uses the OpenAI Responses API. The default call cap is `DEFAULT_MAX_WEB_SEARCH_CALLS`. Public HTTP requests can be limited with an agent allowlist. Credentialed HTTP, GitHub writes, and Gmail send go through the external-effect ledger. Gmail send still requires approval when the agent policy allows it. A lost response stays uncertain until you reconcile it on the execution page; it is not sent again.
+
+`deploy/langfuse` is a separate console with its own Postgres, ClickHouse, Redis, and blob store. It is bound to `127.0.0.1:3100` and is not started by `pnpm dev`. The published Langfuse sizing is 4 cores and 16 GiB. On a smaller machine, point the Langfuse variables at Langfuse Cloud instead.
+
+`evals/promptfooconfig.yaml` grades canned good and bad outputs for tool choice and protected writes. It is a product fixture, not a CI check. The bad config is expected to fail:
+
+```bash
+pnpm --filter @orvia/core exec promptfoo eval -c ../../evals/promptfooconfig.yaml
+pnpm --filter @orvia/core exec promptfoo eval -c ../../evals/promptfooconfig.bad.yaml
+```

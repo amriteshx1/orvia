@@ -30,6 +30,7 @@ export default async function ApprovalPage({ params }: { params: Promise<{ id: s
         {approval.decidedAt ? ` · ${new Date(approval.decidedAt).toLocaleString()}` : ""}
       </p>
       <p className="mt-4 text-sm text-muted">Expires {new Date(approval.expiresAt).toLocaleString()}</p>
+      <ActionSummary input={approval.proposedInput} />
       <h2 className="mt-8 text-lg font-medium">Proposed action</h2>
       <pre className="mt-3 overflow-auto whitespace-pre-wrap rounded-2xl bg-card p-4 text-sm">
         {JSON.stringify(approval.proposedInput, null, 2)}
@@ -38,5 +39,29 @@ export default async function ApprovalPage({ params }: { params: Promise<{ id: s
       {approval.comment ? <p className="mt-4 text-sm">Reason: {approval.comment}</p> : null}
       {approval.status === "pending" ? <ApprovalDecision approvalId={approval.id} /> : null}
     </section>
+  );
+}
+
+function ActionSummary({ input }: { input: unknown }) {
+  if (!input || typeof input !== "object") return null;
+  const record = input as Record<string, unknown>;
+  const to = typeof record.to === "string" ? record.to : null;
+  const subject = typeof record.subject === "string" ? record.subject : null;
+  if (!to && !subject) return null;
+  return (
+    <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
+      {to ? (
+        <div>
+          <dt className="text-muted">To</dt>
+          <dd>{to}</dd>
+        </div>
+      ) : null}
+      {subject ? (
+        <div>
+          <dt className="text-muted">Subject</dt>
+          <dd>{subject}</dd>
+        </div>
+      ) : null}
+    </dl>
   );
 }

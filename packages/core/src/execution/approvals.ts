@@ -97,6 +97,20 @@ export async function decideApproval(input: {
         decidedAt: new Date(),
       },
     });
+    await tx.executionStep.create({
+      data: {
+        executionId: approval.executionId,
+        stepIndex: await nextStep(tx, approval.executionId),
+        kind: "approval",
+        toolName: approval.toolName,
+        input: approval.proposedInput ?? undefined,
+        output: {
+          outcome: input.decision,
+          reason: comment || null,
+          performed: input.decision === "approved",
+        },
+      },
+    });
     const pending = await tx.approval.count({
       where: { executionId: execution.id, status: "pending" },
     });

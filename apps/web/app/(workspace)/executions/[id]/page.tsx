@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CancelExecution } from "@/components/cancel-execution";
 import { ExecutionRefresher } from "@/components/execution-refresher";
+import { ReconcileEffect } from "@/components/reconcile-effect";
 import { requirePageUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ export default async function ExecutionPage({ params }: { params: Promise<{ id: 
           <dt className="text-muted">Tokens</dt>
           <dd>
             {execution.inputTokens} in · {execution.outputTokens} out · {execution.cachedTokens} cached ·{" "}
-            {execution.reasoningTokens} reasoning
+            {execution.reasoningTokens} reasoning · {execution.embeddingTokens} embedding · {execution.webSearchCalls} searches
           </dd>
         </div>
         <div>
@@ -106,6 +107,7 @@ export default async function ExecutionPage({ params }: { params: Promise<{ id: 
                 ) : null}
                 {step.input ? <JsonBlock label="Input" value={step.input} /> : null}
                 {step.output ? <JsonBlock label="Output" value={step.output} /> : null}
+                <SourceList output={step.output} />
               </li>
             ))}
           </ol>
@@ -131,7 +133,45 @@ export default async function ExecutionPage({ params }: { params: Promise<{ id: 
           </ul>
         </div>
       ) : null}
+      {execution.effects.length > 0 ? (
+        <div className="mt-10">
+          <h2 className="text-xl font-semibold">External effects</h2>
+          <ul className="mt-4 space-y-3">
+            {execution.effects.map((effect) => (
+              <li key={effect.id} className="rounded-2xl border border-line bg-card px-5 py-4 text-sm">
+                <p className="font-medium">{effect.status}</p>
+                <p className="mt-1 text-muted">
+                  {effect.toolCallId}
+                  {effect.idempotencyKey ? ` · ${effect.idempotencyKey}` : " · no idempotency key"}
+                </p>
+                {effect.status === "uncertain" ? (
+                  <ReconcileEffect executionId={execution.id} effectId={effect.id} />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+function SourceList({ output }: { output: unknown }) {
+  if (!output || typeof output !== "object" || !("sources" in output)) return null;
+  const sources = (output as { sources?: unknown }).sources;
+  if (!Array.isArray(sources) || sources.length === 0) return null;
+  return (
+    <ul className="mt-3 space-y-1 text-sm">
+      {sources.map((source, index) => {
+        if (!source || typeof source !== "object" || !("url" in source) || typeof source.url !== "string") return null;
+        const title = "title" in source && typeof source.title === "string" ? source.title : source.url;
+        return (
+          <li key={`${source.url}-${index}`}>
+            <a href={source.url}>{title}</a>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

@@ -19,6 +19,10 @@ export const SAFE_ERROR_MESSAGES: Record<string, string> = {
     "A tool call may have been sent and will not be retried until its outcome is reconciled.",
   effect_failed: "A tool call failed and was not sent again.",
   checkpoint_unsupported: "This run cannot resume because its checkpoint format is unsupported.",
+  ssrf_blocked: "The HTTP request was blocked because its address is not public.",
+  connection_unavailable: "The connection is missing, revoked, or not granted to this agent.",
+  encryption_unconfigured: "Connection secrets are unavailable until an encryption key is configured.",
+  oauth_unconfigured: "This provider's OAuth credentials are not configured.",
   internal_error: "The run failed.",
 };
 

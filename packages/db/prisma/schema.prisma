@@ -19,10 +19,15 @@ model User {
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
-  agents        Agent[]
-  executions    Execution[]
-  budget        UserBudget?
-  approvals     Approval[]
+  agents          Agent[]
+  executions      Execution[]
+  budget          UserBudget?
+  approvals       Approval[]
+  connections     Connection[]
+  secrets         Secret[]
+  memories        MemoryItem[]
+  datasets        EvaluationDataset[]
+  evaluationRuns  EvaluationRun[]
 
   @@unique([email])
   @@map("user")
@@ -88,6 +93,8 @@ model Agent {
   user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions         AgentVersion[]
   executions       Execution[]
+  memories         MemoryItem[]
+  evaluationRuns   EvaluationRun[]
   currentVersion   AgentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
 
   @@index([userId, archivedAt])
@@ -111,6 +118,7 @@ model AgentVersion {
   createdAt       DateTime @default(now())
   agent           Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
   executions      Execution[]
+  evaluationRuns  EvaluationRun[]
   currentFor      Agent?      @relation("CurrentVersion")
 
   @@unique([agentId, versionNumber])
@@ -183,6 +191,8 @@ model Execution {
   outputTokens           Int               @default(0)
   cachedTokens           Int               @default(0)
   reasoningTokens        Int               @default(0)
+  embeddingTokens        Int               @default(0)
+  webSearchCalls         Int               @default(0)
   estimatedCostUsd       Float?
   langfuseTraceId        String?
   startedAt              DateTime?
@@ -197,6 +207,7 @@ model Execution {
   effects                ExternalEffect[]
   approvals              Approval[]
   usage                  UsageRecord?
+  caseResult             EvaluationCaseResult?
 
   @@index([userId, createdAt])
   @@index([userId, status])
@@ -286,6 +297,8 @@ model UsageRecord {
   cachedTokens     Int
   reasoningTokens  Int
   toolCallCount    Int
+  embeddingTokens  Int       @default(0)
+  webSearchCalls   Int       @default(0)
   estimatedCostUsd Float?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -293,4 +306,179 @@ model UsageRecord {
 
   @@index([userId, createdAt])
   @@map("usage_record")
+}
+
+enum ConnectionProvider {
+  http
+  github
+  gmail
+  slack
+}
+
+enum ConnectionStatus {
+  active
+  revoked
+  error
+}
+
+model Connection {
+  id                String             @id @default(uuid()) @db.Uuid
+  userId            String
+  provider          ConnectionProvider
+  label             String
+  status            ConnectionStatus   @default(active)
+  scopes            String[]
+  externalAccountId String?
+  tokenExpiresAt    DateTime?
+  config            Json
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  secret            Secret?
+
+  @@index([userId, provider])
+  @@map("connection")
+}
+
+model Secret {
+  id           String     @id @default(uuid()) @db.Uuid
+  connectionId String     @unique @db.Uuid
+  userId       String
+  ciphertext   String
+  iv           String
+  authTag      String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("secret")
+}
+
+model OauthState {
+  id           String             @id @default(uuid()) @db.Uuid
+  userId       String
+  provider     ConnectionProvider
+  state        String             @unique
+  codeVerifier String?
+  scopes       String[]
+  label        String
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime           @default(now())
+
+  @@index([userId, state])
+  @@map("oauth_state")
+}
+
+enum MemoryStatus {
+  proposed
+  accepted
+  rejected
+}
+
+enum MemoryAuthor {
+  agent
+  user
+}
+
+model MemoryItem {
+  id                 String       @id @default(uuid()) @db.Uuid
+  userId             String
+  agentId            String       @db.Uuid
+  content            String
+  kind               String       @default("fact")
+  embedding          Unsupported("vector(1536)")?
+  status             MemoryStatus @default(proposed)
+  sourceExecutionId  String?      @db.Uuid
+  sourceStepId       String?      @db.Uuid
+  toolCallId         String?      @unique
+  createdBy          MemoryAuthor
+  embeddingHoldTokens Int         @default(0)
+  deletedAt          DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent              Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, agentId, status])
+  @@map("memory_item")
+}
+
+enum EvaluationRunStatus {
+  running
+  completed
+  failed
+}
+
+model EvaluationDataset {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String
+  name        String
+  description String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cases       EvaluationCase[]
+  runs        EvaluationRun[]
+
+  @@index([userId, createdAt])
+  @@map("evaluation_dataset")
+}
+
+model EvaluationCase {
+  id         String   @id @default(uuid()) @db.Uuid
+  datasetId  String   @db.Uuid
+  userId     String
+  name       String
+  task       String
+  assertions Json
+  position   Int
+  createdAt  DateTime @default(now())
+  dataset    EvaluationDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  results    EvaluationCaseResult[]
+
+  @@index([datasetId, position])
+  @@map("evaluation_case")
+}
+
+model EvaluationRun {
+  id             String              @id @default(uuid()) @db.Uuid
+  userId         String
+  datasetId      String              @db.Uuid
+  agentId        String              @db.Uuid
+  agentVersionId String              @db.Uuid
+  status         EvaluationRunStatus @default(running)
+  createdAt      DateTime            @default(now())
+  finishedAt     DateTime?
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dataset        EvaluationDataset   @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  agent          Agent               @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agentVersion   AgentVersion        @relation(fields: [agentVersionId], references: [id], onDelete: Restrict)
+  results        EvaluationCaseResult[]
+
+  @@index([userId, createdAt])
+  @@map("evaluation_run")
+}
+
+model EvaluationCaseResult {
+  id          String    @id @default(uuid()) @db.Uuid
+  runId       String    @db.Uuid
+  caseId      String    @db.Uuid
+  userId      String
+  executionId String?   @unique @db.Uuid
+  passed      Boolean?
+  score       Float?
+  tools       Json?
+  costUsd     Float?
+  latencyMs   Int?
+  details     Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  run         EvaluationRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  case        EvaluationCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  execution   Execution?       @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@unique([runId, caseId])
+  @@map("evaluation_case_result")
 }

@@ -46,7 +46,7 @@ function flatten(snapshot: AgentSnapshot): Record<string, string> {
       if (key === "instructions") flat.instructions = String(value);
       continue;
     }
-    flat[key] = String(value);
+    flat[key] = typeof value === "object" && value !== null ? JSON.stringify(value) : String(value ?? "");
   }
   flat.enabledTools = [...enabledTools].sort().join(", ");
   flat["approvalPolicy.unknown"] = approvalPolicy.unknown;

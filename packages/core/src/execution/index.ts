@@ -5,8 +5,10 @@ export {
   createExecution,
   getApproval,
   getExecution,
+  getUsage,
   listApprovals,
   listExecutions,
+  reconcileEffect,
   submitApprovalDecision,
   type ExecutionRuntime,
 } from "./service";

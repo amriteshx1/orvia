@@ -8,6 +8,16 @@ import {
 } from "./defaults";
 
 const mode = z.enum(APPROVAL_MODES);
+const domain = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9.-]+$/, "Enter a domain without a scheme")
+  .max(253);
+const optionalId = z
+  .union([z.string().uuid(), z.literal(""), z.null()])
+  .optional()
+  .transform((value) => (value ? value : null));
 
 export const agentInputSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
@@ -21,6 +31,13 @@ export const agentInputSchema = z.object({
   maxSteps: z.number().int().min(1).max(100),
   maxTotalTokens: z.number().int().min(1).max(2_000_000),
   wallClockMs: z.number().int().min(1_000).max(86_400_000),
+  maxWebSearchCalls: z.number().int().min(0).max(50).default(3),
+  webSearchAllowedDomains: z.array(domain).max(100).default([]),
+  webSearchBlockedDomains: z.array(domain).max(100).default([]),
+  httpAllowedDomains: z.array(domain).max(100).default([]),
+  githubConnectionId: optionalId.default(null),
+  gmailConnectionId: optionalId.default(null),
+  httpConnectionIds: z.array(z.string().uuid()).max(20).default([]),
   approvalPolicy: z.object({
     unknown: mode,
     tools: z.object({
@@ -38,6 +55,7 @@ export const agentInputSchema = z.object({
       memory_search: mode,
       memory_update: mode,
       memory_delete: mode,
+      gmail_draft: mode,
     }),
   }),
 });

@@ -1,5 +1,6 @@
 import { getWebEnv } from "@orvia/config";
 import { compareAgentVersions, getAgent, NotFoundError } from "@orvia/core/agents";
+import { listConnections } from "@orvia/core/connections";
 import { listExecutions } from "@orvia/core/execution";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -37,6 +38,7 @@ export default async function AgentDetailPage({
 
   const modelNote = getWebEnv().openAiModel;
   const executions = await listExecutions(user.id, id);
+  const connections = await listConnections(user.id);
   const versions = [...agent.versions].sort((left, right) => left.versionNumber - right.versionNumber);
 
   return (
@@ -52,6 +54,7 @@ export default async function AgentDetailPage({
         mode="edit"
         agentId={agent.id}
         initial={agent.current}
+        connections={connections}
         readOnly={Boolean(agent.archivedAt)}
       />
       <div className="mt-12 border-t border-line pt-8">

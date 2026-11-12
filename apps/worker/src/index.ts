@@ -45,6 +45,15 @@ const worker = new Worker(
       langfusePublicKey: env.langfusePublicKey,
       langfuseSecretKey: env.langfuseSecretKey,
       langfuseBaseUrl: env.langfuseBaseUrl,
+      embeddingModel: env.openAiEmbeddingModel,
+      credentialsKey: env.credentialsEncryptionKey,
+      githubClientId: env.githubClientId,
+      githubClientSecret: env.githubClientSecret,
+      googleClientId: env.googleClientId,
+      googleClientSecret: env.googleClientSecret,
+      httpTimeoutMs: env.httpToolTimeoutMs,
+      httpMaxResponseBytes: env.httpToolMaxResponseBytes,
+      openAiModel: env.openAiModel,
     });
   },
   {
@@ -58,6 +67,9 @@ const worker = new Worker(
 );
 
 console.info(`worker ready with concurrency ${env.workerConcurrency}`);
+void maintainExecutions(env.REDIS_URL, env.queuePrefix).catch((error: unknown) => {
+  console.error(error instanceof Error ? error.name : "maintenance");
+});
 const maintenance = setInterval(() => {
   void maintainExecutions(env.REDIS_URL, env.queuePrefix).catch((error: unknown) => {
     console.error(error instanceof Error ? error.name : "maintenance");

@@ -31,6 +31,16 @@ export type WebEnv = SharedEnv & {
   monthlyTokenBudget: number;
   maxConcurrentExecutions: number;
   approvalTimeoutHours: number;
+  credentialsEncryptionKey?: string;
+  openAiApiKey?: string;
+  openAiEmbeddingModel: string;
+  defaultMaxWebSearchCalls: number;
+  httpToolTimeoutMs: number;
+  httpToolMaxResponseBytes: number;
+  githubClientId?: string;
+  githubClientSecret?: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
 };
 
 export type WorkerEnv = SharedEnv & {
@@ -43,6 +53,15 @@ export type WorkerEnv = SharedEnv & {
   langfusePublicKey?: string;
   langfuseSecretKey?: string;
   langfuseBaseUrl?: string;
+  credentialsEncryptionKey?: string;
+  openAiEmbeddingModel: string;
+  defaultMaxWebSearchCalls: number;
+  httpToolTimeoutMs: number;
+  httpToolMaxResponseBytes: number;
+  githubClientId?: string;
+  githubClientSecret?: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
 };
 
 export class EnvError extends Error {
@@ -144,6 +163,8 @@ export function parseWebEnv(source: NodeJS.ProcessEnv = process.env): WebEnv {
       "DEFAULT_AGENT_TOKEN_BUDGET",
     ),
     ...platformLimits(source),
+    ...integrationConfig(source),
+    openAiApiKey: read(source, "OPENAI_API_KEY"),
   };
 }
 
@@ -162,6 +183,33 @@ export function parseWorkerEnv(source: NodeJS.ProcessEnv = process.env): WorkerE
     langfusePublicKey: read(source, "LANGFUSE_PUBLIC_KEY"),
     langfuseSecretKey: read(source, "LANGFUSE_SECRET_KEY"),
     langfuseBaseUrl: read(source, "LANGFUSE_BASE_URL"),
+    ...integrationConfig(source),
+  };
+}
+
+function integrationConfig(source: NodeJS.ProcessEnv) {
+  const encryptionKey = read(source, "CREDENTIALS_ENCRYPTION_KEY");
+  if (encryptionKey && !/^[0-9a-fA-F]{64}$/.test(encryptionKey)) {
+    throw new EnvError("CREDENTIALS_ENCRYPTION_KEY must be 64 hex characters");
+  }
+  return {
+    credentialsEncryptionKey: encryptionKey,
+    openAiEmbeddingModel: read(source, "OPENAI_EMBEDDING_MODEL") ?? "text-embedding-3-small",
+    defaultMaxWebSearchCalls: positiveInt(
+      read(source, "DEFAULT_MAX_WEB_SEARCH_CALLS"),
+      3,
+      "DEFAULT_MAX_WEB_SEARCH_CALLS",
+    ),
+    httpToolTimeoutMs: positiveInt(read(source, "HTTP_TOOL_TIMEOUT_MS"), 15_000, "HTTP_TOOL_TIMEOUT_MS"),
+    httpToolMaxResponseBytes: positiveInt(
+      read(source, "HTTP_TOOL_MAX_RESPONSE_BYTES"),
+      1_000_000,
+      "HTTP_TOOL_MAX_RESPONSE_BYTES",
+    ),
+    githubClientId: read(source, "GITHUB_CLIENT_ID"),
+    githubClientSecret: read(source, "GITHUB_CLIENT_SECRET"),
+    googleClientId: read(source, "GOOGLE_CLIENT_ID"),
+    googleClientSecret: read(source, "GOOGLE_CLIENT_SECRET"),
   };
 }
 

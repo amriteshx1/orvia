@@ -37,17 +37,52 @@ export function estimateReservation(messageChars: number, maxOutputTokens: numbe
   return inputTokens + outputTokens + cachedTokens;
 }
 
+/** OpenAI web search tool fee on 11 Nov 2026: $10 per 1,000 calls. Search content tokens bill at model rates. */
+export const WEB_SEARCH_USD_PER_CALL = 10 / 1_000;
+
+const EMBEDDING_PRICES: Record<string, { inputPerMillion: number }> = {
+  "text-embedding-3-small": { inputPerMillion: 0.02 },
+};
+
+export function hasEmbeddingPrice(model: string): boolean {
+  return model in EMBEDDING_PRICES;
+}
+
+export function estimateEmbeddingCostUsd(model: string, tokens: number): number | null {
+  if (tokens <= 0) return 0;
+  const price = EMBEDDING_PRICES[model];
+  if (!price) return null;
+  return roundUsd((tokens * price.inputPerMillion) / 1_000_000);
+}
+
+export function estimateRunCostUsd(input: {
+  model: string;
+  usage: TokenUsage;
+  embeddingModel: string;
+  embeddingTokens: number;
+  webSearchCalls: number;
+}): number | null {
+  const chat = estimateCostUsd(input.model, input.usage);
+  const embedding = estimateEmbeddingCostUsd(input.embeddingModel, input.embeddingTokens);
+  if (chat === null || embedding === null) return null;
+  return roundUsd(chat + embedding + input.webSearchCalls * WEB_SEARCH_USD_PER_CALL);
+}
+
+function roundUsd(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
 export function estimateCostUsd(model: string, usage: TokenUsage): number | null {
   const price = MODEL_PRICES[model];
   if (!price) return null;
   const cached = Math.min(Math.max(0, usage.cachedTokens), Math.max(0, usage.inputTokens));
   const uncached = Math.max(0, usage.inputTokens - cached);
-  const usd =
+  return roundUsd(
     (uncached * price.inputPerMillion +
       cached * price.cachedInputPerMillion +
       usage.outputTokens * price.outputPerMillion) /
-    1_000_000;
-  return Math.round(usd * 1_000_000) / 1_000_000;
+      1_000_000,
+  );
 }
 
 export function emptyUsage(): TokenUsage {

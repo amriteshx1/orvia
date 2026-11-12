@@ -23,6 +23,7 @@ export const APPROVAL_ACTIONS = [
   "memory_search",
   "memory_update",
   "memory_delete",
+  "gmail_draft",
 ] as const;
 
 export const APPROVAL_MODES = ["auto", "require_approval", "deny"] as const;
@@ -51,6 +52,13 @@ export type AgentSnapshot = {
   maxSteps: number;
   maxTotalTokens: number;
   wallClockMs: number;
+  maxWebSearchCalls: number;
+  webSearchAllowedDomains: string[];
+  webSearchBlockedDomains: string[];
+  httpAllowedDomains: string[];
+  githubConnectionId: string | null;
+  gmailConnectionId: string | null;
+  httpConnectionIds: string[];
   approvalPolicy: ApprovalPolicy;
 };
 
@@ -58,6 +66,7 @@ export type AgentDefaults = {
   maxSteps: number;
   wallClockMs: number;
   tokenBudget: number;
+  maxWebSearchCalls: number;
 };
 
 export function defaultApprovalPolicy(): ApprovalPolicy {
@@ -78,6 +87,7 @@ export function defaultApprovalPolicy(): ApprovalPolicy {
       memory_search: "auto",
       memory_update: "require_approval",
       memory_delete: "require_approval",
+      gmail_draft: "auto",
     },
   };
 }
@@ -127,6 +137,13 @@ export function defaultSnapshot(model: string, defaults: AgentDefaults): AgentSn
     maxSteps: defaults.maxSteps,
     maxTotalTokens: defaults.tokenBudget,
     wallClockMs: defaults.wallClockMs,
+    maxWebSearchCalls: defaults.maxWebSearchCalls,
+    webSearchAllowedDomains: [],
+    webSearchBlockedDomains: [],
+    httpAllowedDomains: [],
+    githubConnectionId: null,
+    gmailConnectionId: null,
+    httpConnectionIds: [],
     approvalPolicy: defaultApprovalPolicy(),
   };
 }

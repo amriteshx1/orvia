@@ -76,7 +76,7 @@ export async function acquireLease(input: {
       return { outcome: "skip" };
     }
     await tx.externalEffect.updateMany({
-      where: { executionId: input.executionId, status: "reserved" },
+      where: { executionId: input.executionId, status: "reserved", idempotencyKey: null },
       data: { status: "uncertain" },
     });
     return { outcome: "acquired", token };

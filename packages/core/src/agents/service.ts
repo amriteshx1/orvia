@@ -69,6 +69,7 @@ export async function getAgent(userId: string, agentId: string): Promise<AgentDe
 
 export async function createAgent(userId: string, value: unknown, model: string) {
   const snapshot = snapshotFromInput(parseAgentInput(value), model);
+  await assertOwnedConnections(userId, snapshot);
   const agent = await prisma.$transaction(async (tx) => {
     const created = await tx.agent.create({
       data: {
@@ -90,6 +91,7 @@ export async function createAgent(userId: string, value: unknown, model: string)
 
 export async function updateAgent(userId: string, agentId: string, value: unknown, model: string) {
   const snapshot = snapshotFromInput(parseAgentInput(value), model);
+  await assertOwnedConnections(userId, snapshot);
   const existing = await prisma.agent.findFirst({
     where: { id: agentId, userId },
     include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } },
@@ -115,13 +117,19 @@ export async function updateAgent(userId: string, agentId: string, value: unknow
   return getAgent(userId, agentId);
 }
 
-export async function archiveAgent(userId: string, agentId: string) {
+export async function archiveAgent(userId: string, agentId: string, options?: { deleteMemories?: boolean }) {
   const existing = await prisma.agent.findFirst({ where: { id: agentId, userId } });
   if (!existing) throw new NotFoundError();
   if (!existing.archivedAt) {
     await prisma.agent.update({
       where: { id: existing.id },
       data: { archivedAt: new Date() },
+    });
+  }
+  if (options?.deleteMemories) {
+    await prisma.memoryItem.updateMany({
+      where: { userId, agentId, deletedAt: null },
+      data: { deletedAt: new Date() },
     });
   }
   return getAgent(userId, agentId);
@@ -153,7 +161,19 @@ function versionData(agentId: string, versionNumber: number, snapshot: AgentSnap
     model: snapshot.model,
     temperature: snapshot.temperature,
     maxOutputTokens: snapshot.maxOutputTokens,
-    toolConfig: { enabledTools: snapshot.enabledTools },
+    toolConfig: {
+      enabledTools: snapshot.enabledTools,
+      webSearch: {
+        allowedDomains: snapshot.webSearchAllowedDomains,
+        blockedDomains: snapshot.webSearchBlockedDomains,
+      },
+      http: { allowedDomains: snapshot.httpAllowedDomains },
+      connections: {
+        github: snapshot.githubConnectionId,
+        gmail: snapshot.gmailConnectionId,
+        http: snapshot.httpConnectionIds,
+      },
+    },
     memoryConfig: {
       enabled: snapshot.memoryEnabled,
       writeMode: snapshot.memoryWriteMode,
@@ -162,6 +182,7 @@ function versionData(agentId: string, versionNumber: number, snapshot: AgentSnap
       maxSteps: snapshot.maxSteps,
       maxTotalTokens: snapshot.maxTotalTokens,
       wallClockMs: snapshot.wallClockMs,
+      maxWebSearchCalls: snapshot.maxWebSearchCalls,
     },
     approvalPolicy: snapshot.approvalPolicy,
   };
@@ -169,6 +190,9 @@ function versionData(agentId: string, versionNumber: number, snapshot: AgentSnap
 
 function toVersion(version: VersionRecord) {
   const tools = readObject(version.toolConfig);
+  const webSearch = readObject(tools.webSearch);
+  const http = readObject(tools.http);
+  const connections = readObject(tools.connections);
   const memory = readObject(version.memoryConfig);
   const limits = readObject(version.limits);
   const policy = normalizeApprovalPolicy(version.approvalPolicy);
@@ -190,12 +214,44 @@ function toVersion(version: VersionRecord) {
     maxSteps: Number(limits.maxSteps),
     maxTotalTokens: Number(limits.maxTotalTokens),
     wallClockMs: Number(limits.wallClockMs),
+    maxWebSearchCalls: Number(limits.maxWebSearchCalls ?? 3),
+    webSearchAllowedDomains: stringList(webSearch.allowedDomains),
+    webSearchBlockedDomains: stringList(webSearch.blockedDomains),
+    httpAllowedDomains: stringList(http.allowedDomains),
+    githubConnectionId: typeof connections.github === "string" ? connections.github : null,
+    gmailConnectionId: typeof connections.gmail === "string" ? connections.gmail : null,
+    httpConnectionIds: stringList(connections.http),
     approvalPolicy: policy,
   };
 }
 
+async function assertOwnedConnections(userId: string, snapshot: AgentSnapshot) {
+  const ids = [snapshot.githubConnectionId, snapshot.gmailConnectionId, ...snapshot.httpConnectionIds].filter(
+    (id): id is string => Boolean(id),
+  );
+  if (ids.length === 0) return;
+  const rows = await prisma.connection.findMany({
+    where: { userId, id: { in: ids }, status: "active" },
+    select: { id: true, provider: true },
+  });
+  const providers = new Map(rows.map((row) => [row.id, row.provider]));
+  if (snapshot.githubConnectionId && providers.get(snapshot.githubConnectionId) !== "github") {
+    throw new ValidationError([{ path: "githubConnectionId", message: "Choose an active GitHub connection" }]);
+  }
+  if (snapshot.gmailConnectionId && providers.get(snapshot.gmailConnectionId) !== "gmail") {
+    throw new ValidationError([{ path: "gmailConnectionId", message: "Choose an active Gmail connection" }]);
+  }
+  if (snapshot.httpConnectionIds.some((id) => providers.get(id) !== "http")) {
+    throw new ValidationError([{ path: "httpConnectionIds", message: "Choose active HTTP connections" }]);
+  }
+}
+
 export function readAgentSnapshot(version: VersionRecord) {
   return toVersion(version);
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function readObject(value: unknown): Record<string, unknown> {

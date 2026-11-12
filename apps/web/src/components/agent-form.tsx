@@ -19,17 +19,22 @@ const actionLabels: Record<(typeof APPROVAL_ACTIONS)[number], string> = {
   memory_search: "Memory search",
   memory_update: "Memory update",
   memory_delete: "Memory delete",
+  gmail_draft: "Gmail draft",
 };
+
+type ConnectionOption = { id: string; provider: string; label: string; status: string };
 
 export function AgentForm({
   mode,
   initial,
   agentId,
+  connections = [],
   readOnly = false,
 }: {
   mode: "create" | "edit";
   initial: AgentSnapshot;
   agentId?: string;
+  connections?: ConnectionOption[];
   readOnly?: boolean;
 }) {
   const router = useRouter();
@@ -58,6 +63,13 @@ export function AgentForm({
       maxSteps: Number(form.get("maxSteps")),
       maxTotalTokens: Number(form.get("maxTotalTokens")),
       wallClockMs: Number(form.get("wallClockMinutes")) * 60_000,
+      maxWebSearchCalls: Number(form.get("maxWebSearchCalls")),
+      webSearchAllowedDomains: domains(String(form.get("webSearchAllowedDomains") ?? "")),
+      webSearchBlockedDomains: domains(String(form.get("webSearchBlockedDomains") ?? "")),
+      httpAllowedDomains: domains(String(form.get("httpAllowedDomains") ?? "")),
+      githubConnectionId: String(form.get("githubConnectionId") ?? "") || null,
+      gmailConnectionId: String(form.get("gmailConnectionId") ?? "") || null,
+      httpConnectionIds: form.getAll("httpConnectionIds").map(String),
       approvalPolicy: {
         unknown: String(form.get("approval.unknown")),
         tools,
@@ -81,7 +93,10 @@ export function AgentForm({
 
   async function archive() {
     if (!agentId || !window.confirm("Archive this agent? Past versions stay stored.")) return;
-    const response = await fetch(`/api/agents/${agentId}`, { method: "DELETE" });
+    const deleteMemories = window.confirm("Also delete this agent's memories?");
+    const response = await fetch(`/api/agents/${agentId}?memories=${deleteMemories ? "delete" : "keep"}`, {
+      method: "DELETE",
+    });
     if (response.ok) router.push("/agents");
   }
 
@@ -137,8 +152,7 @@ export function AgentForm({
       <fieldset className="space-y-3">
         <legend className="text-lg font-medium">Tools</legend>
         <p className="text-sm text-muted">
-          Fixture action is the local approval gate. The other tools are saved on the version and are not available to
-          the model yet.
+          New agents start with no tools. Slack is not available in this release. Gmail send always waits for approval.
         </p>
         {TOOL_IDS.map((tool) => (
           <label key={tool} className="flex items-center gap-2 text-sm">
@@ -148,11 +162,50 @@ export function AgentForm({
               name="enabledTools"
               value={tool}
               defaultChecked={initial.enabledTools.includes(tool)}
-              disabled={readOnly}
+              disabled={readOnly || tool === "slack"}
             />
-            {tool === "fixture" ? "Fixture action" : tool}
+            {tool === "fixture" ? "Fixture action" : tool === "slack" ? "Slack (not available yet)" : tool}
           </label>
         ))}
+        <label className="block text-sm">
+          Web search allowed domains
+          <input className="mt-1" name="webSearchAllowedDomains" defaultValue={initial.webSearchAllowedDomains.join(", ")} disabled={readOnly} />
+        </label>
+        <label className="block text-sm">
+          Web search blocked domains
+          <input className="mt-1" name="webSearchBlockedDomains" defaultValue={initial.webSearchBlockedDomains.join(", ")} disabled={readOnly} />
+        </label>
+        <label className="block text-sm">
+          Public HTTP allowlist
+          <input className="mt-1" name="httpAllowedDomains" defaultValue={initial.httpAllowedDomains.join(", ")} placeholder="Leave empty to allow any public host" disabled={readOnly} />
+        </label>
+        <label className="block text-sm">
+          GitHub connection
+          <select className="mt-1" name="githubConnectionId" defaultValue={initial.githubConnectionId ?? ""} disabled={readOnly}>
+            <option value="">None</option>
+            {connections.filter((item) => item.provider === "github" && item.status === "active").map((item) => (
+              <option key={item.id} value={item.id}>{item.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm">
+          Gmail connection
+          <select className="mt-1" name="gmailConnectionId" defaultValue={initial.gmailConnectionId ?? ""} disabled={readOnly}>
+            <option value="">None</option>
+            {connections.filter((item) => item.provider === "gmail" && item.status === "active").map((item) => (
+              <option key={item.id} value={item.id}>{item.label}</option>
+            ))}
+          </select>
+        </label>
+        <div className="space-y-2">
+          <p className="text-sm">HTTP connections</p>
+          {connections.filter((item) => item.provider === "http" && item.status === "active").map((item) => (
+            <label key={item.id} className="flex items-center gap-2 text-sm">
+              <input className="h-4 w-4" type="checkbox" name="httpConnectionIds" value={item.id} defaultChecked={initial.httpConnectionIds.includes(item.id)} disabled={readOnly} />
+              {item.label}
+            </label>
+          ))}
+        </div>
       </fieldset>
 
       <section className="space-y-4">
@@ -207,6 +260,10 @@ export function AgentForm({
           />
         </label>
         <label className="block text-sm">
+          Web search calls
+          <input className="mt-1" name="maxWebSearchCalls" type="number" min={0} defaultValue={initial.maxWebSearchCalls} disabled={readOnly} />
+        </label>
+        <label className="block text-sm">
           Wall clock (minutes)
           <input
             className="mt-1"
@@ -249,6 +306,7 @@ export function AgentForm({
             </select>
           </label>
         ))}
+        <p className="text-sm text-muted">Gmail send stays approval-gated even if this policy says allow.</p>
       </section>
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
@@ -274,4 +332,11 @@ export function AgentForm({
       )}
     </form>
   );
+}
+
+function domains(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
 }

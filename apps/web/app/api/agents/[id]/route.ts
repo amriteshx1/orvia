@@ -37,7 +37,8 @@ export async function DELETE(request: Request, context: Context) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await context.params;
   try {
-    return Response.json({ agent: await archiveAgent(user.id, id) });
+    const memories = new URL(request.url).searchParams.get("memories");
+    return Response.json({ agent: await archiveAgent(user.id, id, { deleteMemories: memories === "delete" }) });
   } catch (error) {
     return agentErrorResponse(error);
   }

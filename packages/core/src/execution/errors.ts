@@ -39,4 +39,22 @@ export class EffectFailed extends Error {
   }
 }
 
+export class EffectRetry extends Error {
+  readonly code = "effect_retry";
+
+  constructor() {
+    super("effect retry");
+    this.name = "EffectRetry";
+  }
+}
+
+export class BudgetStopped extends Error {
+  readonly code = "budget_exceeded";
+
+  constructor() {
+    super("budget exceeded");
+    this.name = "BudgetStopped";
+  }
+}
+
 export const LOST = Symbol("lost-lease");

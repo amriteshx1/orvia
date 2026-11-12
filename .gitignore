@@ -4,6 +4,7 @@ dist
 .env
 .env.*
 !.env.example
+!deploy/langfuse/.env.example
 ,env
 *.tsbuildinfo
 packages/db/generated

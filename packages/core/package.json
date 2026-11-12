@@ -8,7 +8,10 @@
     "./agent-defaults": "./src/agents/defaults.ts",
     "./health": "./src/health.ts",
     "./execution": "./src/execution/index.ts",
-    "./execution/runner": "./src/execution/runner.ts"
+    "./execution/runner": "./src/execution/runner.ts",
+    "./connections": "./src/connections/service.ts",
+    "./memory": "./src/memory/index.ts",
+    "./evals": "./src/evals/service.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -21,6 +24,7 @@
     "diff": "^8.0.2",
     "ioredis": "^5.8.2",
     "langfuse": "^3.38.6",
+    "promptfoo": "^0.120.0",
     "pg": "^8.16.3",
     "zod": "^4.1.12"
   },
